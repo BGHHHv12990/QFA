@@ -208,3 +208,73 @@ def _dec_uint(data: bytes) -> int:
     if len(data) < 32:
         raise QFAError("decode uint needs 32 bytes")
     return int.from_bytes(data[:32], "big")
+
+
+def _dec_address_word(data: bytes) -> str:
+    if len(data) < 32:
+        raise QFAError("decode address needs 32 bytes")
+    return "0x" + data[12:32].hex()
+
+
+def _strip_0x(h: str) -> str:
+    return h[2:] if h.startswith("0x") else h
+
+
+def _hex_to_bytes32_words(hexdata: str) -> list[bytes]:
+    b = _to_bytes_hex(hexdata)
+    if len(b) % 32 != 0:
+        # pad right for safety; eth_call returns multiples of 32 typically
+        pad = 32 - (len(b) % 32)
+        b += b"\x00" * pad
+    return list(_chunks(b, 32))
+
+
+# ============================================================
+# JSON-RPC client
+# ============================================================
+
+
+@dataclasses.dataclass(frozen=True)
+class RPCConfig:
+    url: str = "https://cloudflare-eth.com"
+    timeout_s: float = 20.0
+    user_agent: str = "QFA/1.0 (Quantguriosa Field App)"
+
+
+class JsonRpc:
+    def __init__(self, cfg: RPCConfig):
+        self.cfg = cfg
+        self._id = random.randint(10_000, 99_999)
+        self._lock = threading.Lock()
+
+    def _next_id(self) -> int:
+        with self._lock:
+            self._id += 1
+            return self._id
+
+    def call(self, method: str, params: list[t.Any]) -> t.Any:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": method,
+            "params": params,
+        }
+        url = urllib.parse.urlparse(self.cfg.url)
+        if url.scheme not in ("http", "https"):
+            raise QFAError(f"Unsupported RPC URL scheme: {url.scheme}")
+        conn: http.client.HTTPConnection | http.client.HTTPSConnection
+        if url.scheme == "https":
+            conn = http.client.HTTPSConnection(url.netloc, timeout=self.cfg.timeout_s)
+        else:
+            conn = http.client.HTTPConnection(url.netloc, timeout=self.cfg.timeout_s)
+        path = url.path or "/"
+        if url.query:
+            path = path + "?" + url.query
+
+        body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": self.cfg.user_agent,
+            "Accept": "application/json",
+        }
+        try:
