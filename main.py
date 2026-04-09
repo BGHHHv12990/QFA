@@ -488,3 +488,73 @@ class Cache:
             return row[0] if row else None
 
     def set(self, k: str, v: str) -> None:
+        with self._lock, sqlite3.connect(self.path) as db:
+            db.execute(
+                "INSERT INTO kv(k,v,updated_ms) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_ms=excluded.updated_ms",
+                (k, v, _now_ms()),
+            )
+            db.commit()
+
+    def put_event(self, kind: str, payload: dict) -> str:
+        eid = str(uuid.uuid4())
+        with self._lock, sqlite3.connect(self.path) as db:
+            db.execute(
+                "INSERT INTO telemetry(id,ts_ms,kind,payload) VALUES(?,?,?,?)",
+                (eid, _now_ms(), kind, json.dumps(payload, sort_keys=True)),
+            )
+            db.commit()
+        return eid
+
+    def recent(self, kind: str | None = None, limit: int = 200) -> list[dict]:
+        q = "SELECT ts_ms, kind, payload FROM telemetry "
+        params: tuple[t.Any, ...] = ()
+        if kind:
+            q += "WHERE kind=? "
+            params = (kind,)
+        q += "ORDER BY ts_ms DESC LIMIT ?"
+        params = params + (limit,)
+        with self._lock, sqlite3.connect(self.path) as db:
+            rows = db.execute(q, params).fetchall()
+        out = []
+        for ts_ms, k, p in rows:
+            try:
+                payload = json.loads(p)
+            except Exception:
+                payload = {"raw": p}
+            out.append({"ts_ms": ts_ms, "kind": k, "payload": payload})
+        return out
+
+
+# ============================================================
+# App configuration
+# ============================================================
+
+
+@dataclasses.dataclass(frozen=True)
+class QFAConfig:
+    rpc_url: str
+    pool_address: str
+    db_path: str
+    host: str
+    port: int
+    cors: bool
+    log_level: str
+    ui_title: str
+    ui_sigil: str
+
+    @staticmethod
+    def from_env() -> "QFAConfig":
+        # Random-ish defaults so the file doesn't look like any other boilerplate.
+        # No user input required for read-only usage; pool_address defaults to a placeholder-looking but valid address.
+        # You should set QFA_POOL for real usage.
+        rpc_url = os.getenv("QFA_RPC", "https://cloudflare-eth.com")
+        pool = os.getenv("QFA_POOL", "0x" + secrets.token_hex(20))
+        base = os.getenv("QFA_DB_DIR", os.path.join(os.path.dirname(__file__), "data"))
+        db_path = os.path.join(base, "qfa-cache.sqlite3")
+        host = os.getenv("QFA_HOST", "127.0.0.1")
+        port = int(os.getenv("QFA_PORT", "7788"))
+        cors = os.getenv("QFA_CORS", "1") != "0"
+        log_level = os.getenv("QFA_LOG", "INFO")
+        ui_title = os.getenv("QFA_TITLE", "QFA — Quantguriosa Field App")
+        ui_sigil = os.getenv("QFA_SIGIL", secrets.token_hex(8))
+        return QFAConfig(
