@@ -348,3 +348,73 @@ class QuoteExactIn:
 
 @dataclasses.dataclass(frozen=True)
 class QuoteExactOut:
+    tokenOut: str
+    amountOut: int
+    amountIn: int
+    feeBps: int
+
+
+class QuantguriosaClient:
+    def __init__(self, rpc: JsonRpc, pool_address: str):
+        if not _is_hex_address(pool_address):
+            raise QFAError("pool_address must be 0x + 40 hex chars")
+        self.rpc = rpc
+        self.pool = pool_address
+
+    def _call(self, sig: str, args: list[bytes] | None = None) -> bytes:
+        data = _call_data(sig, args or [])
+        hexret = self.rpc.eth_call(self.pool, data)
+        return _to_bytes_hex(hexret)
+
+    def tokens(self) -> tuple[str, str]:
+        # tokens() returns (address,address)
+        raw = self._call("tokens()")
+        w = _hex_to_bytes32_words(_uhex(raw))
+        a0 = _dec_address_word(w[0])
+        a1 = _dec_address_word(w[1])
+        return (a0, a1)
+
+    def reserves(self) -> tuple[int, int, int]:
+        # reserves() returns (uint128,uint128,uint64)
+        raw = self._call("reserves()")
+        w = _hex_to_bytes32_words(_uhex(raw))
+        r0 = _dec_uint(w[0])
+        r1 = _dec_uint(w[1])
+        ts = _dec_uint(w[2])
+        return (r0, r1, ts)
+
+    def currentFeeBps(self) -> tuple[int, int, int]:
+        # currentFeeBps() returns (uint24,uint32,uint32)
+        raw = self._call("currentFeeBps()")
+        w = _hex_to_bytes32_words(_uhex(raw))
+        fee = _dec_uint(w[0])
+        vol = _dec_uint(w[1])
+        kq = _dec_uint(w[2])
+        return (fee, vol, kq)
+
+    def quoteExactIn(self, tokenIn: str, amountIn: int) -> QuoteExactIn:
+        if not _is_hex_address(tokenIn):
+            raise QFAError("tokenIn must be an address")
+        if amountIn <= 0:
+            raise QFAError("amountIn must be > 0")
+        raw = self._call("quoteExactIn(address,uint256)", [_enc_address(tokenIn), _enc_uint(amountIn)])
+        w = _hex_to_bytes32_words(_uhex(raw))
+        # SwapQuote: amountOut, feeBps, r0, r1, volQ, kQ
+        amountOut = _dec_uint(w[0])
+        fee = _dec_uint(w[1])
+        r0 = _dec_uint(w[2])
+        r1 = _dec_uint(w[3])
+        vol = _dec_uint(w[4])
+        kq = _dec_uint(w[5])
+        return QuoteExactIn(tokenIn=tokenIn, amountIn=amountIn, amountOut=amountOut, feeBps=fee, r0=r0, r1=r1, volQ=vol, kQ=kq)
+
+    def quoteExactOut(self, tokenOut: str, amountOut: int) -> QuoteExactOut:
+        if not _is_hex_address(tokenOut):
+            raise QFAError("tokenOut must be an address")
+        if amountOut <= 0:
+            raise QFAError("amountOut must be > 0")
+        raw = self._call("quoteExactOut(address,uint256)", [_enc_address(tokenOut), _enc_uint(amountOut)])
+        w = _hex_to_bytes32_words(_uhex(raw))
+        amountIn = _dec_uint(w[0])
+        feeBps = _dec_uint(w[1])
+        return QuoteExactOut(tokenOut=tokenOut, amountOut=amountOut, amountIn=amountIn, feeBps=feeBps)
