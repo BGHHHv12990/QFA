@@ -418,3 +418,73 @@ class QuantguriosaClient:
         amountIn = _dec_uint(w[0])
         feeBps = _dec_uint(w[1])
         return QuoteExactOut(tokenOut=tokenOut, amountOut=amountOut, amountIn=amountIn, feeBps=feeBps)
+
+    def consultVolatility(self, lookback: int) -> tuple[int, int, int]:
+        raw = self._call("consultVolatility(uint16)", [_enc_uint16(lookback)])
+        w = _hex_to_bytes32_words(_uhex(raw))
+        vol = _dec_uint(w[0])
+        kq = _dec_uint(w[1])
+        age = _dec_uint(w[2])
+        return (vol, kq, age)
+
+    def consultTwapQ96(self, lookback: int) -> tuple[int, int, int]:
+        raw = self._call("consultTwapQ96(uint16)", [_enc_uint16(lookback)])
+        w = _hex_to_bytes32_words(_uhex(raw))
+        p01 = _dec_uint(w[0])
+        p10 = _dec_uint(w[1])
+        span = _dec_uint(w[2])
+        return (p01, p10, span)
+
+    def poolId(self) -> str:
+        raw = self._call("poolId()")
+        w = _hex_to_bytes32_words(_uhex(raw))
+        return "0x" + w[0].hex()
+
+    def eth_getCode(self) -> str:
+        return self.rpc.eth_getCode(self.pool)
+
+    def get_state(self) -> PoolState:
+        t0, t1 = self.tokens()
+        r0, r1, ts = self.reserves()
+        fee, vol, kq = self.currentFeeBps()
+        return PoolState(token0=t0, token1=t1, reserve0=r0, reserve1=r1, lastSyncTs=ts, feeBps=fee, volQ=vol, kQ=kq)
+
+
+# ============================================================
+# Local cache (sqlite) for convenience
+# ============================================================
+
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS kv (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL,
+  updated_ms INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS telemetry (
+  id TEXT PRIMARY KEY,
+  ts_ms INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  payload TEXT NOT NULL
+);
+"""
+
+
+class Cache:
+    def __init__(self, path: str):
+        self.path = path
+        self._lock = threading.Lock()
+        self._init()
+
+    def _init(self) -> None:
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with sqlite3.connect(self.path) as db:
+            db.executescript(SCHEMA)
+            db.commit()
+
+    def get(self, k: str) -> str | None:
+        with self._lock, sqlite3.connect(self.path) as db:
+            row = db.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
+            return row[0] if row else None
+
+    def set(self, k: str, v: str) -> None:
