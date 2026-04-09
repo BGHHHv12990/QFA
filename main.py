@@ -138,3 +138,73 @@ def _keccak(data: bytes) -> bytes:
     # Prefer eth_utils.keccak if installed, else fallback to sha3_256 (not identical),
     # but we keep a strict requirement for keccak for selector correctness.
     if keccak is not None:
+        return keccak(data)  # type: ignore
+    # Python stdlib doesn't have keccak; abort with clear error.
+    raise QFAError(
+        "Missing keccak implementation. Install dependencies: pip install eth-utils eth-account"
+    )
+
+
+def _selector(signature: str) -> bytes:
+    return _keccak(signature.encode("utf-8"))[:4]
+
+
+def _pad32(b: bytes) -> bytes:
+    if len(b) > 32:
+        raise QFAError(f"abi pad32 overflow: {len(b)}")
+    return b.rjust(32, b"\x00")
+
+
+def _enc_uint(n: int) -> bytes:
+    if n < 0:
+        raise QFAError("uint cannot be negative")
+    return _pad32(n.to_bytes(32, "big"))
+
+
+def _enc_uint128(n: int) -> bytes:
+    if n < 0 or n > (1 << 128) - 1:
+        raise QFAError("uint128 out of range")
+    return _enc_uint(n)
+
+
+def _enc_uint24(n: int) -> bytes:
+    if n < 0 or n > (1 << 24) - 1:
+        raise QFAError("uint24 out of range")
+    return _enc_uint(n)
+
+
+def _enc_uint16(n: int) -> bytes:
+    if n < 0 or n > (1 << 16) - 1:
+        raise QFAError("uint16 out of range")
+    return _enc_uint(n)
+
+
+def _enc_address(a: str) -> bytes:
+    if not _is_hex_address(a):
+        raise QFAError(f"bad address: {a}")
+    return _pad32(_to_bytes_hex(a))
+
+
+def _enc_bytes16_hex(tag_hex: str) -> bytes:
+    b = _to_bytes_hex(tag_hex)
+    if len(b) != 16:
+        raise QFAError("bytes16 must be exactly 16 bytes")
+    return _pad32(b)
+
+
+def _enc_bytes32_hex(h: str) -> bytes:
+    b = _to_bytes_hex(h)
+    if len(b) != 32:
+        raise QFAError("bytes32 must be exactly 32 bytes")
+    return _pad32(b)
+
+
+def _call_data(signature: str, args_enc: list[bytes]) -> str:
+    data = _selector(signature) + b"".join(args_enc)
+    return _uhex(data)
+
+
+def _dec_uint(data: bytes) -> int:
+    if len(data) < 32:
+        raise QFAError("decode uint needs 32 bytes")
+    return int.from_bytes(data[:32], "big")
