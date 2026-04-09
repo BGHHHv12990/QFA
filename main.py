@@ -278,3 +278,73 @@ class JsonRpc:
             "Accept": "application/json",
         }
         try:
+            conn.request("POST", path, body=body, headers=headers)
+            resp = conn.getresponse()
+            raw = resp.read()
+        except Exception as e:
+            raise RPCError(f"RPC network error: {e}", payload=payload) from e
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        try:
+            out = json.loads(raw.decode("utf-8"))
+        except Exception as e:
+            raise RPCError("RPC non-JSON response", payload=payload, response={"raw": raw[:300].decode("latin1", "ignore")}) from e
+
+        if isinstance(out, dict) and "error" in out:
+            raise RPCError(f"RPC error: {out['error']}", payload=payload, response=out)
+        if not isinstance(out, dict) or "result" not in out:
+            raise RPCError("RPC malformed response", payload=payload, response=out if isinstance(out, dict) else {"out": out})
+        return out["result"]
+
+    # Convenience wrappers
+    def eth_chainId(self) -> int:
+        return int(self.call("eth_chainId", []), 16)
+
+    def eth_blockNumber(self) -> int:
+        return int(self.call("eth_blockNumber", []), 16)
+
+    def eth_getBalance(self, address: str, block: str = "latest") -> int:
+        return int(self.call("eth_getBalance", [address, block]), 16)
+
+    def eth_call(self, to: str, data: str, block: str = "latest") -> str:
+        return self.call("eth_call", [{"to": to, "data": data}, block])
+
+    def eth_getCode(self, address: str, block: str = "latest") -> str:
+        return self.call("eth_getCode", [address, block])
+
+
+# ============================================================
+# Quantguriosa contract adapter (view calls)
+# ============================================================
+
+
+@dataclasses.dataclass(frozen=True)
+class PoolState:
+    token0: str
+    token1: str
+    reserve0: int
+    reserve1: int
+    lastSyncTs: int
+    feeBps: int
+    volQ: int
+    kQ: int
+
+
+@dataclasses.dataclass(frozen=True)
+class QuoteExactIn:
+    tokenIn: str
+    amountIn: int
+    amountOut: int
+    feeBps: int
+    r0: int
+    r1: int
+    volQ: int
+    kQ: int
+
+
+@dataclasses.dataclass(frozen=True)
+class QuoteExactOut:
