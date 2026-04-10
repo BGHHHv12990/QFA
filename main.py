@@ -698,3 +698,73 @@ def _html_index(cfg: QFAConfig) -> str:
       word-break: break-word;
       background: rgba(10,12,18,.6);
       border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.45;
+      color: rgba(231,236,255,.88);
+    }}
+    .kv {{
+      display:grid;
+      grid-template-columns: 170px 1fr;
+      gap: 8px 12px;
+      align-items: baseline;
+      font-family: var(--mono);
+      font-size: 12px;
+    }}
+    .k {{ color: rgba(142,160,199,.9); }}
+    .v {{ color: rgba(231,236,255,.92); }}
+    .ok {{ color: var(--ok); }}
+    .bad {{ color: var(--bad); }}
+    .warn {{ color: var(--warn); }}
+    .footer {{
+      padding: 14px 18px 18px 18px;
+      color: rgba(142,160,199,.9);
+      font-size: 12px;
+    }}
+    a {{ color: var(--accent); text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>{cfg.ui_title}</h1>
+      <div class="sub">
+        <span class="pill">sigil={cfg.ui_sigil}</span>
+        <span class="pill">rpc=<span id="rpcpill"></span></span>
+        <span class="pill">pool=<span id="poolpill"></span></span>
+        <span class="pill">time=<span id="timepill"></span></span>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="wrap grid">
+      <section class="card">
+        <h2>
+          <span>Pool Snapshot</span>
+          <span class="muted" id="snapStatus">idle</span>
+        </h2>
+        <div class="body">
+          <div class="cols">
+            <div>
+              <label>RPC URL</label>
+              <input id="rpc" value="{cfg.rpc_url}" />
+            </div>
+            <div>
+              <label>Pool Address</label>
+              <input id="pool" value="{cfg.pool_address}" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button id="btnSnap">Fetch snapshot</button>
+            <button id="btnOracle">Fetch oracle (lookback 19)</button>
+            <button id="btnPing">Ping RPC</button>
+          </div>
+          <div style="margin-top:12px;">
+            <div class="kv" id="kv"></div>
+          </div>
+          <div style="margin-top:12px;">
+            <pre id="raw"></pre>
+          </div>
