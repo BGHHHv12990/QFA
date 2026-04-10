@@ -978,3 +978,73 @@ def _html_index(cfg: QFAConfig) -> str:
 
 def _require_fastapi() -> None:
     if FastAPI is None or uvicorn is None:
+        raise QFAError(
+            "FastAPI/uvicorn not installed. Install: pip install fastapi uvicorn[standard] eth-utils eth-account"
+        )
+
+
+def build_app(cfg: QFAConfig, cache: Cache) -> "FastAPI":
+    _require_fastapi()
+    app = FastAPI(title="QFA", version="1.0", docs_url="/docs", redoc_url="/redoc")
+    if cfg.cors and CORSMiddleware is not None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+    def _client_from_query(rpc_url: str, pool: str) -> QuantguriosaClient:
+        rpc = JsonRpc(RPCConfig(url=rpc_url))
+        return QuantguriosaClient(rpc, pool)
+
+    def _q_get(request: Request, k: str, default: str) -> str:
+        v = request.query_params.get(k)
+        return v if v is not None and v.strip() else default
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request):
+        return HTMLResponse(_html_index(cfg))
+
+    @app.get("/api/ping")
+    async def ping(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        rpc = JsonRpc(RPCConfig(url=rpc_url))
+        t0 = _now_ms()
+        try:
+            chain = rpc.eth_chainId()
+            block = rpc.eth_blockNumber()
+            code = rpc.eth_getCode(pool)
+            ok = code != "0x"
+            out = {
+                "ok": ok,
+                "chainId": chain,
+                "blockNumber": block,
+                "poolHasCode": ok,
+                "pool": pool,
+                "rpc": rpc_url,
+                "latency_ms": _now_ms() - t0,
+                "time": _now_iso(),
+            }
+            cache.put_event("ping", out)
+            return out
+        except RPCError as e:
+            cache.put_event("rpc_error", {"where": "ping", "err": str(e), "rpc": rpc_url})
+            raise HTTPException(status_code=502, detail=str(e))
+
+    @app.get("/api/pool/state")
+    async def pool_state(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        c = _client_from_query(rpc_url, pool)
+        try:
+            st = c.get_state()
+            out = dataclasses.asdict(st)
+            out["pool"] = pool
+            out["rpc"] = rpc_url
+            out["time"] = _now_iso()
+            cache.put_event("pool_state", out)
+            return out
+        except Exception as e:
+            cache.put_event("error", {"where": "pool_state", "err": str(e), "trace": traceback.format_exc()[:1200]})
