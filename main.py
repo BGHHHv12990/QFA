@@ -908,3 +908,73 @@ def _html_index(cfg: QFAConfig) -> str:
 
     async function autoFillToken() {{
       setStatus("qStatus", "reading tokens…");
+      try {{
+        const st = await api("/api/pool/state");
+        const m = el("mode").value;
+        // For exactIn: token should be token0; for exactOut: token should be token1 (arbitrary)
+        el("token").value = m === "exactIn" ? st.token0 : st.token1;
+        setStatus("qStatus", "ready", "ok");
+      }} catch (e) {{
+        setStatus("qStatus", "error", "bad");
+      }}
+    }}
+
+    async function quote() {{
+      setStatus("qStatus", "quoting…");
+      const mode = el("mode").value;
+      const token = el("token").value.trim();
+      const amount = (el("amount").value || "").trim();
+      if (!isAddr(token)) {{
+        setStatus("qStatus", "bad token address", "bad");
+        return;
+      }}
+      let n = 0n;
+      try {{
+        if (amount.startsWith("0x")) n = BigInt(amount);
+        else n = BigInt(amount);
+      }} catch (e) {{
+        setStatus("qStatus", "bad amount", "bad");
+        return;
+      }}
+      try {{
+        let out;
+        if (mode === "exactIn") {{
+          out = await api("/api/pool/quote/exact-in", {{tokenIn: token, amountIn: n.toString()}});
+        }} else {{
+          out = await api("/api/pool/quote/exact-out", {{tokenOut: token, amountOut: n.toString()}});
+        }}
+        el("quoteOut").textContent = JSON.stringify(out, null, 2);
+        setStatus("qStatus", "ok", "ok");
+      }} catch (e) {{
+        el("quoteOut").textContent = String(e);
+        setStatus("qStatus", "error", "bad");
+      }}
+    }}
+
+    function tick() {{
+      el("rpcpill").textContent = el("rpc").value.trim();
+      el("poolpill").textContent = el("pool").value.trim();
+      el("timepill").textContent = new Date().toISOString();
+    }}
+
+    el("btnPing").addEventListener("click", ping);
+    el("btnSnap").addEventListener("click", snapshot);
+    el("btnOracle").addEventListener("click", oracle);
+    el("btnQuote").addEventListener("click", quote);
+    el("btnState").addEventListener("click", autoFillToken);
+
+    setInterval(tick, 800);
+    tick();
+  </script>
+</body>
+</html>
+"""
+
+
+# ============================================================
+# FastAPI server
+# ============================================================
+
+
+def _require_fastapi() -> None:
+    if FastAPI is None or uvicorn is None:
