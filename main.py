@@ -768,3 +768,73 @@ def _html_index(cfg: QFAConfig) -> str:
           <div style="margin-top:12px;">
             <pre id="raw"></pre>
           </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>
+          <span>Quote</span>
+          <span class="muted" id="qStatus">idle</span>
+        </h2>
+        <div class="body">
+          <div class="cols">
+            <div>
+              <label>Token In / Out</label>
+              <select id="mode">
+                <option value="exactIn">Exact In</option>
+                <option value="exactOut">Exact Out</option>
+              </select>
+            </div>
+            <div>
+              <label>Amount (raw uint256)</label>
+              <input id="amount" value="1000000000000000000" />
+            </div>
+          </div>
+          <div class="cols" style="margin-top:10px;">
+            <div>
+              <label>Token Address (tokenIn for exactIn; tokenOut for exactOut)</label>
+              <input id="token" value="0x0000000000000000000000000000000000000000" />
+            </div>
+            <div>
+              <label>Lookback (oracle consult)</label>
+              <input id="lookback" value="19" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button id="btnQuote">Quote</button>
+            <button id="btnState">Autofill token from pool</button>
+          </div>
+          <div style="margin-top:12px;">
+            <pre id="quoteOut"></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="wrap footer">
+      This UI calls the local QFA API. See <a href="/docs">/docs</a> when running with FastAPI.
+    </div>
+  </main>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const fmt = (x) => (typeof x === "number" ? x.toString() : String(x));
+    const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+    const isAddr = (s) => /^0x[0-9a-fA-F]{{40}}$/.test((s||"").trim());
+
+    function setStatus(id, msg, kind="muted") {{
+      const e = el(id);
+      e.className = kind;
+      e.textContent = msg;
+    }}
+
+    function kvRender(obj) {{
+      const root = el("kv");
+      root.innerHTML = "";
+      const keys = Object.keys(obj);
+      keys.sort();
+      for (const k of keys) {{
+        const v = obj[k];
+        const dk = document.createElement("div");
+        dk.className = "k";
+        dk.textContent = k;
