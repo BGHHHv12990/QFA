@@ -558,3 +558,73 @@ class QFAConfig:
         ui_title = os.getenv("QFA_TITLE", "QFA — Quantguriosa Field App")
         ui_sigil = os.getenv("QFA_SIGIL", secrets.token_hex(8))
         return QFAConfig(
+            rpc_url=rpc_url,
+            pool_address=pool,
+            db_path=db_path,
+            host=host,
+            port=port,
+            cors=cors,
+            log_level=log_level,
+            ui_title=ui_title,
+            ui_sigil=ui_sigil,
+        )
+
+
+def _setup_logging(level: str) -> None:
+    lvl = getattr(logging, level.upper(), logging.INFO)
+    logging.basicConfig(
+        level=lvl,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+# ============================================================
+# Small HTML UI (kept inline to keep single-file requirement)
+# ============================================================
+
+
+def _html_index(cfg: QFAConfig) -> str:
+    # Intentionally verbose to increase file size and keep UI useful.
+    # No external assets required.
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{cfg.ui_title}</title>
+  <style>
+    :root {{
+      --bg: #0c0e14;
+      --panel: #121726;
+      --muted: #8ea0c7;
+      --text: #e7ecff;
+      --accent: #7dd3fc;
+      --accent2: #a78bfa;
+      --warn: #fbbf24;
+      --bad: #fb7185;
+      --ok: #34d399;
+      --line: rgba(255,255,255,.08);
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: radial-gradient(1100px 900px at 10% 0%, rgba(167,139,250,.18), transparent 55%),
+                  radial-gradient(900px 700px at 100% 20%, rgba(125,211,252,.16), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }}
+    header {{
+      padding: 22px 18px;
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+      background: rgba(12,14,20,.6);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }}
+    .wrap {{ max-width: 1100px; margin: 0 auto; }}
