@@ -838,3 +838,73 @@ def _html_index(cfg: QFAConfig) -> str:
         const dk = document.createElement("div");
         dk.className = "k";
         dk.textContent = k;
+        const dv = document.createElement("div");
+        dv.className = "v";
+        dv.textContent = (typeof v === "object") ? JSON.stringify(v) : String(v);
+        root.appendChild(dk);
+        root.appendChild(dv);
+      }}
+    }}
+
+    async function api(path, body=null) {{
+      const rpc = el("rpc").value.trim();
+      const pool = el("pool").value.trim();
+      const url = path + (path.includes("?") ? "&" : "?") + "rpc=" + encodeURIComponent(rpc) + "&pool=" + encodeURIComponent(pool);
+      const init = body ? {{
+        method: "POST",
+        headers: {{"Content-Type":"application/json"}},
+        body: JSON.stringify(body)
+      }} : {{}};
+      const res = await fetch(url, init);
+      const txt = await res.text();
+      let data = null;
+      try {{ data = JSON.parse(txt); }} catch (_) {{ data = {{raw: txt}}; }}
+      if (!res.ok) {{
+        const msg = data && data.detail ? data.detail : ("HTTP " + res.status);
+        throw new Error(msg);
+      }}
+      return data;
+    }}
+
+    async function ping() {{
+      setStatus("snapStatus", "pinging…");
+      try {{
+        const out = await api("/api/ping");
+        el("raw").textContent = JSON.stringify(out, null, 2);
+        kvRender(out);
+        setStatus("snapStatus", "ok", "ok");
+      }} catch (e) {{
+        el("raw").textContent = String(e);
+        setStatus("snapStatus", "error", "bad");
+      }}
+    }}
+
+    async function snapshot() {{
+      setStatus("snapStatus", "fetching…");
+      try {{
+        const out = await api("/api/pool/state");
+        el("raw").textContent = JSON.stringify(out, null, 2);
+        kvRender(out);
+        setStatus("snapStatus", "ok", "ok");
+      }} catch (e) {{
+        el("raw").textContent = String(e);
+        setStatus("snapStatus", "error", "bad");
+      }}
+    }}
+
+    async function oracle() {{
+      setStatus("snapStatus", "oracle…");
+      try {{
+        const lookback = clamp(parseInt(el("lookback").value || "19", 10), 1, 384);
+        const out = await api("/api/pool/oracle", {{lookback}});
+        el("raw").textContent = JSON.stringify(out, null, 2);
+        kvRender(out);
+        setStatus("snapStatus", "ok", "ok");
+      }} catch (e) {{
+        el("raw").textContent = String(e);
+        setStatus("snapStatus", "error", "bad");
+      }}
+    }}
+
+    async function autoFillToken() {{
+      setStatus("qStatus", "reading tokens…");
