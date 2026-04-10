@@ -628,3 +628,73 @@ def _html_index(cfg: QFAConfig) -> str:
       z-index: 20;
     }}
     .wrap {{ max-width: 1100px; margin: 0 auto; }}
+    h1 {{ margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .2px; }}
+    .sub {{ margin-top: 6px; color: var(--muted); font-size: 12px; display:flex; gap: 10px; flex-wrap:wrap; }}
+    .pill {{
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: rgba(231,236,255,.86);
+      background: rgba(18,23,38,.55);
+    }}
+    main {{ padding: 18px; }}
+    .grid {{ display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }}
+    @media (max-width: 980px) {{ .grid {{ grid-template-columns: 1fr; }} }}
+    .card {{
+      background: linear-gradient(180deg, rgba(18,23,38,.72), rgba(18,23,38,.52));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }}
+    .card h2 {{
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      color: rgba(231,236,255,.82);
+      padding: 14px 14px 10px 14px;
+      border-bottom: 1px solid var(--line);
+      display:flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }}
+    .card .body {{ padding: 14px; }}
+    .row {{ display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
+    label {{ font-size: 12px; color: rgba(231,236,255,.78); }}
+    input, select {{
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px 11px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(10,12,18,.6);
+      color: var(--text);
+      outline: none;
+      font-family: var(--mono);
+      font-size: 12px;
+    }}
+    input:focus, select:focus {{ border-color: rgba(125,211,252,.45); box-shadow: 0 0 0 4px rgba(125,211,252,.08); }}
+    .cols {{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
+    @media (max-width: 560px) {{ .cols {{ grid-template-columns: 1fr; }} }}
+    button {{
+      padding: 11px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: linear-gradient(135deg, rgba(125,211,252,.22), rgba(167,139,250,.18));
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 650;
+      letter-spacing: .2px;
+    }}
+    button:hover {{ border-color: rgba(125,211,252,.35); }}
+    .muted {{ color: var(--muted); }}
+    pre {{
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: rgba(10,12,18,.6);
+      border: 1px solid rgba(255,255,255,.08);
