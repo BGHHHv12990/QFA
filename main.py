@@ -1188,3 +1188,73 @@ def cmd_ping(cfg: QFAConfig, cache: Cache) -> int:
     code = rpc.eth_getCode(cfg.pool_address)
     ok = code != "0x"
     out = {
+        "ok": ok,
+        "rpc": cfg.rpc_url,
+        "pool": cfg.pool_address,
+        "poolHasCode": ok,
+        "chainId": chain,
+        "blockNumber": block,
+        "latency_ms": _now_ms() - t0,
+        "time": _now_iso(),
+    }
+    cache.put_event("ping_cli", out)
+    _print_json(out)
+    return 0 if ok else 2
+
+
+def cmd_state(cfg: QFAConfig, cache: Cache) -> int:
+    c = QuantguriosaClient(JsonRpc(RPCConfig(url=cfg.rpc_url)), cfg.pool_address)
+    st = c.get_state()
+    out = dataclasses.asdict(st)
+    out["rpc"] = cfg.rpc_url
+    out["pool"] = cfg.pool_address
+    out["time"] = _now_iso()
+    cache.put_event("state_cli", out)
+    _print_json(out)
+    return 0
+
+
+def cmd_quote_in(cfg: QFAConfig, cache: Cache, token: str, amt: str) -> int:
+    c = QuantguriosaClient(JsonRpc(RPCConfig(url=cfg.rpc_url)), cfg.pool_address)
+    q = c.quoteExactIn(token, int(amt, 0))
+    out = dataclasses.asdict(q)
+    out["rpc"] = cfg.rpc_url
+    out["pool"] = cfg.pool_address
+    out["tag"] = _rand_tag16()
+    out["time"] = _now_iso()
+    cache.put_event("quote_in_cli", out)
+    _print_json(out)
+    return 0
+
+
+def cmd_quote_out(cfg: QFAConfig, cache: Cache, token: str, amt: str) -> int:
+    c = QuantguriosaClient(JsonRpc(RPCConfig(url=cfg.rpc_url)), cfg.pool_address)
+    q = c.quoteExactOut(token, int(amt, 0))
+    out = dataclasses.asdict(q)
+    out["rpc"] = cfg.rpc_url
+    out["pool"] = cfg.pool_address
+    out["tag"] = _rand_tag16()
+    out["time"] = _now_iso()
+    cache.put_event("quote_out_cli", out)
+    _print_json(out)
+    return 0
+
+
+def cmd_oracle(cfg: QFAConfig, cache: Cache, n: int = 19) -> int:
+    n = max(1, min(int(n), 384))
+    c = QuantguriosaClient(JsonRpc(RPCConfig(url=cfg.rpc_url)), cfg.pool_address)
+    vol, kq, age = c.consultVolatility(n)
+    p01, p10, span = c.consultTwapQ96(n)
+    out = {
+        "lookback": n,
+        "volQ": vol,
+        "kQ": kq,
+        "age_s": age,
+        "twap_p0Over1_Q96": p01,
+        "twap_p1Over0_Q96": p10,
+        "twap_span_s": span,
+        "rpc": cfg.rpc_url,
+        "pool": cfg.pool_address,
+        "time": _now_iso(),
+    }
+    cache.put_event("oracle_cli", out)
