@@ -1048,3 +1048,73 @@ def build_app(cfg: QFAConfig, cache: Cache) -> "FastAPI":
             return out
         except Exception as e:
             cache.put_event("error", {"where": "pool_state", "err": str(e), "trace": traceback.format_exc()[:1200]})
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/pool/quote/exact-in")
+    async def quote_exact_in(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        body = await request.json()
+        token_in = str(body.get("tokenIn", "")).strip()
+        amount_in = _as_int(body.get("amountIn", 0))
+        c = _client_from_query(rpc_url, pool)
+        try:
+            q = c.quoteExactIn(token_in, amount_in)
+            out = dataclasses.asdict(q)
+            out["pool"] = pool
+            out["rpc"] = rpc_url
+            out["tag"] = _rand_tag16()
+            out["time"] = _now_iso()
+            cache.put_event("quote_exact_in", out)
+            return out
+        except Exception as e:
+            cache.put_event("error", {"where": "quote_exact_in", "err": str(e), "trace": traceback.format_exc()[:1200]})
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/pool/quote/exact-out")
+    async def quote_exact_out(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        body = await request.json()
+        token_out = str(body.get("tokenOut", "")).strip()
+        amount_out = _as_int(body.get("amountOut", 0))
+        c = _client_from_query(rpc_url, pool)
+        try:
+            q = c.quoteExactOut(token_out, amount_out)
+            out = dataclasses.asdict(q)
+            out["pool"] = pool
+            out["rpc"] = rpc_url
+            out["tag"] = _rand_tag16()
+            out["time"] = _now_iso()
+            cache.put_event("quote_exact_out", out)
+            return out
+        except Exception as e:
+            cache.put_event("error", {"where": "quote_exact_out", "err": str(e), "trace": traceback.format_exc()[:1200]})
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/pool/oracle")
+    async def pool_oracle(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        body = await request.json()
+        lookback = int(body.get("lookback", 19))
+        lookback = max(1, min(lookback, 384))
+        c = _client_from_query(rpc_url, pool)
+        try:
+            vol, kq, age = c.consultVolatility(lookback)
+            p01, p10, span = c.consultTwapQ96(lookback)
+            out = {
+                "lookback": lookback,
+                "volQ": vol,
+                "kQ": kq,
+                "age_s": age,
+                "twap_p0Over1_Q96": p01,
+                "twap_p1Over0_Q96": p10,
+                "twap_span_s": span,
+                "pool": pool,
+                "rpc": rpc_url,
+                "time": _now_iso(),
+            }
+            cache.put_event("oracle", out)
+            return out
+        except Exception as e:
