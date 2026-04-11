@@ -1258,3 +1258,57 @@ def cmd_oracle(cfg: QFAConfig, cache: Cache, n: int = 19) -> int:
         "time": _now_iso(),
     }
     cache.put_event("oracle_cli", out)
+    _print_json(out)
+    return 0
+
+
+def cmd_run(cfg: QFAConfig, cache: Cache) -> int:
+    _require_fastapi()
+    app = build_app(cfg, cache)
+    assert uvicorn is not None
+    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level=cfg.log_level.lower())
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    cfg = QFAConfig.from_env()
+    _setup_logging(cfg.log_level)
+    cache = Cache(cfg.db_path)
+
+    if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
+        print(textwrap.dedent(HELP).strip())
+        return 0
+
+    cmd = argv[1].strip().lower()
+    try:
+        if cmd == "run":
+            return cmd_run(cfg, cache)
+        if cmd == "ping":
+            return cmd_ping(cfg, cache)
+        if cmd == "state":
+            return cmd_state(cfg, cache)
+        if cmd == "quote-in":
+            if len(argv) < 4:
+                raise QFAError("quote-in requires TOKEN and AMT")
+            return cmd_quote_in(cfg, cache, argv[2], argv[3])
+        if cmd == "quote-out":
+            if len(argv) < 4:
+                raise QFAError("quote-out requires TOKEN and AMT")
+            return cmd_quote_out(cfg, cache, argv[2], argv[3])
+        if cmd == "oracle":
+            n = int(argv[2]) if len(argv) >= 3 else 19
+            return cmd_oracle(cfg, cache, n)
+        raise QFAError(f"Unknown command: {cmd}")
+    except RPCError as e:
+        logging.error("RPCError: %s", e)
+        if e.response:
+            logging.error("RPC response: %s", json.dumps(e.response)[:1200])
+        return 3
+    except Exception as e:
+        logging.error("%s", e)
+        logging.debug("Trace:\n%s", traceback.format_exc())
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
