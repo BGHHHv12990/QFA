@@ -1118,3 +1118,73 @@ def build_app(cfg: QFAConfig, cache: Cache) -> "FastAPI":
             cache.put_event("oracle", out)
             return out
         except Exception as e:
+            cache.put_event("error", {"where": "pool_oracle", "err": str(e), "trace": traceback.format_exc()[:1200]})
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/api/telemetry/recent")
+    async def telemetry_recent(request: Request):
+        kind = request.query_params.get("kind")
+        limit = int(request.query_params.get("limit") or "200")
+        limit = max(1, min(limit, 1000))
+        return {"items": cache.recent(kind=kind, limit=limit)}
+
+    @app.get("/api/healthz")
+    async def healthz():
+        return {"ok": True, "time": _now_iso()}
+
+    @app.get("/api/about")
+    async def about(request: Request):
+        rpc_url = _q_get(request, "rpc", cfg.rpc_url)
+        pool = _q_get(request, "pool", cfg.pool_address)
+        out = {
+            "app": "QFA",
+            "sigil": cfg.ui_sigil,
+            "rpc": rpc_url,
+            "pool": pool,
+            "python": sys.version,
+            "time": _now_iso(),
+        }
+        return out
+
+    return app
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+
+HELP = """
+QFA commands:
+  run                  Start the local HTTP server (FastAPI).
+  ping                 Ping the RPC and check pool code.
+  state                Print pool tokens/reserves/fee.
+  quote-in TOKEN AMT   Quote exact-in (TOKEN address, AMT integer).
+  quote-out TOKEN AMT  Quote exact-out (TOKEN address, AMT integer).
+  oracle [N]           Consult oracle volatility + TWAP with lookback N (default 19).
+
+Environment:
+  QFA_RPC    JSON-RPC URL (default: https://cloudflare-eth.com)
+  QFA_POOL   Pool address (default: random address so it runs without edits)
+  QFA_PORT   Server port (default: 7788)
+
+Examples:
+  python qfa.py run
+  python qfa.py ping
+  python qfa.py state
+  python qfa.py quote-in 0xToken0 1000000000000000000
+"""
+
+
+def _print_json(obj: t.Any) -> None:
+    print(json.dumps(obj, indent=2, sort_keys=True))
+
+
+def cmd_ping(cfg: QFAConfig, cache: Cache) -> int:
+    rpc = JsonRpc(RPCConfig(url=cfg.rpc_url))
+    t0 = _now_ms()
+    chain = rpc.eth_chainId()
+    block = rpc.eth_blockNumber()
+    code = rpc.eth_getCode(cfg.pool_address)
+    ok = code != "0x"
+    out = {
